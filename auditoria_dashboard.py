@@ -74,36 +74,39 @@ tab1, tab2, tab3 = st.tabs(["Auditoría", "Histórico", "Escaneo Activo"])
 
 with tab1:
     # Sidebar para uploads
-    uploaded_file = st.sidebar.file_uploader("Sube un log, PDF o código para analizar", type=['txt', 'pdf', 'py'])
+    uploaded_files = st.sidebar.file_uploader("Sube logs, PDFs o código para analizar", type=['txt', 'pdf', 'py'], accept_multiple_files=True)
     file_content = ""
-    if uploaded_file:
-        if uploaded_file.type == 'text/plain':
-            file_content = uploaded_file.read().decode('utf-8')
-        else:
-            file_content = f"Archivo subido: {uploaded_file.name} (contenido no procesado para texto)"
+    if uploaded_files:
+        for uploaded_file in uploaded_files:
+            if uploaded_file.type == 'text/plain':
+                file_content += f"\n--- {uploaded_file.name} ---\n" + uploaded_file.read().decode('utf-8')
+            else:
+                file_content += f"\n--- {uploaded_file.name} --- (contenido no procesado para texto)"
+        if not file_content.strip():
+            file_content = "Archivos subidos: " + ", ".join([f.name for f in uploaded_files])
 
     # Input del usuario
     escenario = st.text_area("Describe el escenario de auditoría (e.g., 'Analiza este log por inyecciones SQL')")
     if st.button("¡Audita ya! 🚀"):
-        if uploaded_file or escenario:
+        if uploaded_files or escenario:
             prompt = f"Analiza: {escenario}\nContenido: {file_content[:5000]}"
             system_prompt = "Eres un experto en auditorías de ciberseguridad. Responde de forma estructurada: Hallazgos, Evidencias, Mitigaciones."
-            with st.spinner(f"{provider} está auditando..."):
-                resultado = query_provider(prompt, system_prompt, provider, settings)
-            st.markdown("### Resultados de la Auditoría")
-            st.write(resultado)
-            # Save to history
-            history = load_history()
-            history.append({
-                "id": str(uuid.uuid4()),
-                "timestamp": datetime.now().isoformat(),
-                "prompt": prompt,
-                "result": resultado,
-                "provider": provider
-            })
-            save_history(history)
-        else:
-            st.warning("Sube algo o describe un escenario para empezar.")
+        with st.spinner(f"{provider} está auditando..."):
+            resultado = query_provider(prompt, system_prompt, provider, settings)
+        st.markdown("### Resultados de la Auditoría")
+        st.write(resultado)
+        # Save to history
+        history = load_history()
+        history.append({
+            "id": str(uuid.uuid4()),
+            "timestamp": datetime.now().isoformat(),
+            "prompt": prompt,
+            "result": resultado,
+            "provider": provider
+        })
+        save_history(history)
+    else:
+        st.warning("Sube archivos o describe un escenario para empezar.")
 
 with tab2:
     history = load_history()

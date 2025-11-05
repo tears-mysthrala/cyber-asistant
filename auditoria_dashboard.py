@@ -146,24 +146,27 @@ with tab3:
                 elif tool == "OWASP ZAP":
                     cmd = ["wsl", "~/ZAP_2.15.0/zap.sh", "-cmd", "-quickurl", url]
                 try:
-                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-                    output = result.stdout + result.stderr
-                    st.session_state.last_scan_output = output
-                    st.session_state.last_tool = tool
-                    st.session_state.last_profile = profile
-                    st.session_state.last_url = url
-                    st.code(output)
-                    if result.returncode == 0:
-                        # Save scan to history
-                        history = load_history()
-                        history.append({
-                            "id": str(uuid.uuid4()),
-                            "timestamp": datetime.now().isoformat(),
-                            "prompt": f"Escaneo {tool} {profile} en {url}",
-                            "result": output,
-                            "provider": "Scan"
-                        })
-                        save_history(history)
+                    if 'cmd' in locals():
+                        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout) # pyright: ignore[reportPossiblyUnboundVariable]
+                        output = result.stdout + result.stderr
+                        st.session_state.last_scan_output = output
+                        st.session_state.last_tool = tool
+                        st.session_state.last_profile = profile
+                        st.session_state.last_url = url
+                        st.code(output)
+                        if result.returncode == 0:
+                            # Save scan to history
+                            history = load_history()
+                            history.append({
+                                "id": str(uuid.uuid4()),
+                                "timestamp": datetime.now().isoformat(),
+                                "prompt": f"Escaneo {tool} {profile} en {url}",
+                                "result": output,
+                                "provider": "Scan"
+                            })
+                            save_history(history)
+                    else:
+                        st.error("Herramienta no soportada.")
                 except subprocess.TimeoutExpired:
                     st.error("Escaneo timeout.")
                 except FileNotFoundError:

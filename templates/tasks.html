@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Tareas Background</h2>
+{% for task_id, task in tasks.items() %}
+<div class="card mb-3">
+    <div class="card-header">
+        Tarea ID: {{ task_id }} - Estado: {{ task.status }}
+    </div>
+    <div class="card-body">
+        <p><strong>Herramienta:</strong> {{ task.tool }}</p>
+        <p><strong>Perfil:</strong> {{ task.profile }}</p>
+        <p><strong>URL:</strong> {{ task.url }}</p>
+        <p><strong>Inicio:</strong> {{ task.start_time }}</p>
+        {% if task.status == "completed" %}
+            <p>Resultado disponible en <a href="/history">Histórico</a></p>
+        {% elif task.status == "failed" %}
+            <p>Error disponible en <a href="/history">Histórico</a></p>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

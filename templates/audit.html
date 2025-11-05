@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Auditoría</h2>
+<form method="post" enctype="multipart/form-data">
+    <div class="mb-3">
+        <label for="escenario" class="form-label">Describe el escenario de auditoría</label>
+        <textarea class="form-control" id="escenario" name="escenario" rows="3"></textarea>
+    </div>
+    <div class="mb-3">
+        <label for="files" class="form-label">Sube archivos</label>
+        <input class="form-control" type="file" id="files" name="files" multiple>
+    </div>
+    <button type="submit" class="btn btn-primary">¡Audita ya! 🚀</button>
+</form>
+{% if result %}
+<div class="mt-4">
+    <h3>Resultados de la Auditoría</h3>
+    <pre>{{ result }}</pre>
+</div>
+{% endif %}
+{% endblock %}

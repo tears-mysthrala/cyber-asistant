@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Configuración</h2>
+<form method="post">
+    <div class="mb-3">
+        <label for="provider" class="form-label">Proveedor</label>
+        <select class="form-control" id="provider" name="provider">
+            <option value="Ollama">Ollama</option>
+            <option value="OpenAI">OpenAI</option>
+        </select>
+    </div>
+    <div id="ollama-settings">
+        <div class="mb-3">
+            <label for="ollama_url" class="form-label">URL de Ollama</label>
+            <input type="text" class="form-control" id="ollama_url" name="ollama_url" value="http://localhost:11434/api/chat">
+        </div>
+        <div class="mb-3">
+            <label for="ollama_model" class="form-label">Modelo</label>
+            <input type="text" class="form-control" id="ollama_model" name="ollama_model" value="llama3.2">
+        </div>
+    </div>
+    <div id="openai-settings" style="display: none;">
+        <div class="mb-3">
+            <label for="openai_key" class="form-label">API Key</label>
+            <input type="password" class="form-control" id="openai_key" name="openai_key">
+        </div>
+        <div class="mb-3">
+            <label for="openai_url" class="form-label">URL</label>
+            <input type="text" class="form-control" id="openai_url" name="openai_url" value="https://api.openai.com/v1/chat/completions">
+        </div>
+        <div class="mb-3">
+            <label for="openai_model" class="form-label">Modelo</label>
+            <input type="text" class="form-control" id="openai_model" name="openai_model" value="gpt-3.5-turbo">
+        </div>
+    </div>
+    <div class="mb-3 form-check">
+        <input class="form-check-input" type="checkbox" id="dark_mode" name="dark_mode" {{ 'checked' if session.get('dark_mode') else '' }}>
+        <label class="form-check-label" for="dark_mode">
+            Tema Oscuro
+        </label>
+    </div>
+    <button type="submit" class="btn btn-primary">Guardar</button>
+</form>
+<script>
+document.getElementById('provider').addEventListener('change', function() {
+    if (this.value === 'Ollama') {
+        document.getElementById('ollama-settings').style.display = 'block';
+        document.getElementById('openai-settings').style.display = 'none';
+    } else {
+        document.getElementById('ollama-settings').style.display = 'none';
+        document.getElementById('openai-settings').style.display = 'block';
+    }
+});
+</script>
+{% endblock %}

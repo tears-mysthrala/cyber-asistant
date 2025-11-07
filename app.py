@@ -1,13 +1,11 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
-import json
-import os
+from flask import Flask, render_template, request, redirect, url_for, flash, session, Response
 from datetime import datetime
 import uuid
 import threading
 
 from modules.llm import query_provider
 from modules.history import load_history, save_history
-from modules.tasks import load_tasks, save_tasks, run_scan_background
+from modules.tasks import load_tasks, save_tasks, run_scan_background, run_scan_streaming, TOOLS_PROFILES
 
 app = Flask(__name__)
 app.secret_key = 'cyber_assistant_secret'
@@ -102,9 +100,6 @@ def scan():
         timeout = int(request.form.get('timeout', 120))
         background = 'background' in request.form
         
-        provider = session.get('provider', 'Ollama')
-        settings = session.get('settings', {})
-        
         if background:
             task_id = str(uuid.uuid4())
             tasks = load_tasks()
@@ -114,16 +109,32 @@ def scan():
             flash(f"Tarea iniciada en background. ID: {task_id}")
             return redirect(url_for('scan'))
         else:
-            # Similar to before, but simplified
-            flash("Escaneo sincrónico no implementado aún.")
-            return redirect(url_for('scan'))
+            # Run synchronously and stream output
+            def generate():
+                output = []
+                for line in run_scan_streaming(tool, profile, url, timeout):
+                    output.append(line)
+                    yield line
+                # Save to history after completion
+                combined_output = ''.join(output)
+                history = load_history()
+                history.append({
+                    "id": str(uuid.uuid4()),
+                    "timestamp": datetime.now().isoformat(),
+                    "prompt": f"Escaneo {tool} en {url} con perfil {profile}",
+                    "result": combined_output,
+                    "provider": "Scan"
+                })
+                save_history(history)
+            return Response(generate(), mimetype='text/plain')
     
-    return render_template('scan.html')
+    return render_template('scan.html', tools_profiles=TOOLS_PROFILES)
 
 @app.route('/tasks')
 def tasks():
     tasks_data = load_tasks()
-    return render_template('tasks.html', tasks=tasks_data)
+    has_running = any(task.get('status') == 'running' for task in tasks_data.values())
+    return render_template('tasks.html', tasks=tasks_data, has_running=has_running)
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():

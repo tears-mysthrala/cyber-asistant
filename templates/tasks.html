@@ -16,8 +16,17 @@
             <p>Resultado disponible en <a href="/history">Histórico</a></p>
         {% elif task.status == "failed" %}
             <p>Error disponible en <a href="/history">Histórico</a></p>
+        {% elif task.status == "running" and task.get("output") %}
+            <h5>Output en tiempo real:</h5>
+            <pre class="bg-light p-2">{{ task.output }}</pre>
         {% endif %}
     </div>
 </div>
 {% endfor %}
+
+{% if has_running %}
+<script>
+    setTimeout(() => location.reload(), 5000); // Refresh every 5 seconds if there are running tasks
+</script>
+{% endif %}
 {% endblock %}

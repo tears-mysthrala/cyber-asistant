@@ -21,11 +21,7 @@
     <div class="mb-3">
         <label for="profile" class="form-label">Perfil</label>
         <select class="form-control" id="profile" name="profile">
-            <option value="Básico">Básico</option>
-            <option value="Agresivo">Agresivo</option>
-            <option value="Sigiloso">Sigiloso</option>
-            <option value="Ippsec">Ippsec</option>
-            <option value="Completo">Completo</option>
+            <!-- Options will be populated by JavaScript -->
         </select>
     </div>
     <div class="mb-3">
@@ -40,4 +36,26 @@
     </div>
     <button type="submit" class="btn btn-primary">Ejecutar Escaneo</button>
 </form>
+
+<script>
+    const toolsProfiles = {{ tools_profiles | tojson }};
+    const toolSelect = document.getElementById('tool');
+    const profileSelect = document.getElementById('profile');
+
+    function updateProfiles() {
+        const selectedTool = toolSelect.value;
+        const profiles = toolsProfiles[selectedTool] || [];
+        profileSelect.innerHTML = '';
+        profiles.forEach(profile => {
+            const option = document.createElement('option');
+            option.value = profile;
+            option.textContent = profile;
+            profileSelect.appendChild(option);
+        });
+    }
+
+    toolSelect.addEventListener('change', updateProfiles);
+    // Initialize on load
+    updateProfiles();
+</script>
 {% endblock %}

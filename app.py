@@ -2,6 +2,8 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from datetime import datetime
 import uuid
 import threading
+import tempfile
+import os
 
 from modules.llm import query_provider
 from modules.history import load_history, save_history
@@ -100,19 +102,32 @@ def scan():
         timeout = int(request.form.get('timeout', 120))
         background = 'background' in request.form
         
+        wordlist = "~/common.txt"
+        if tool == "Gobuster":
+            if 'wordlist_file' in request.files and request.files['wordlist_file'].filename:
+                file = request.files['wordlist_file']
+                temp_dir = tempfile.mkdtemp()
+                filename = file.filename
+                if filename:
+                    file_path = os.path.join(temp_dir, filename)
+                    file.save(file_path)
+                    wordlist = file_path
+            else:
+                wordlist = request.form.get('wordlist', '~/common.txt')
+        
         if background:
             task_id = str(uuid.uuid4())
             tasks = load_tasks()
             tasks[task_id] = {"status": "running", "tool": tool, "profile": profile, "url": url, "start_time": datetime.now().isoformat()}
             save_tasks(tasks)
-            threading.Thread(target=run_scan_background, args=(task_id, tool, profile, url, timeout)).start()
+            threading.Thread(target=run_scan_background, args=(task_id, tool, profile, url, timeout, wordlist)).start()
             flash(f"Tarea iniciada en background. ID: {task_id}")
             return redirect(url_for('scan'))
         else:
             # Run synchronously and stream output
             def generate():
                 output = []
-                for line in run_scan_streaming(tool, profile, url, timeout):
+                for line in run_scan_streaming(tool, profile, url, timeout, wordlist):
                     output.append(line)
                     yield line
                 # Save to history after completion

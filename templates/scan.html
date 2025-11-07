@@ -2,7 +2,7 @@
 
 {% block content %}
 <h2>Escaneo Activo</h2>
-<form method="post">
+<form method="post" enctype="multipart/form-data">
     <div class="mb-3">
         <label for="url" class="form-label">URL del endpoint</label>
         <input type="text" class="form-control" id="url" name="url" required>
@@ -23,6 +23,11 @@
         <select class="form-control" id="profile" name="profile">
             <!-- Options will be populated by JavaScript -->
         </select>
+    </div>
+    <div class="mb-3" id="wordlist-div" style="display:none;">
+        <label for="wordlist_file" class="form-label">Archivo de Wordlist</label>
+        <input type="file" class="form-control" id="wordlist_file" name="wordlist_file">
+        <small class="form-text text-muted">Opcional: Sube una wordlist personalizada. Si no, se usa ~/common.txt</small>
     </div>
     <div class="mb-3">
         <label for="timeout" class="form-label">Timeout (segundos)</label>
@@ -52,6 +57,13 @@
             option.textContent = profile;
             profileSelect.appendChild(option);
         });
+        // Show wordlist input only for Gobuster
+        const wordlistDiv = document.getElementById('wordlist-div');
+        if (selectedTool === "Gobuster") {
+            wordlistDiv.style.display = 'block';
+        } else {
+            wordlistDiv.style.display = 'none';
+        }
     }
 
     toolSelect.addEventListener('change', updateProfiles);

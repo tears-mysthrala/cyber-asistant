@@ -49,8 +49,10 @@ def wrap_cmd_with_wsl_if_needed(cmd):
             return ['wsl'] + cmd
     return cmd
 
-def run_scan_streaming(tool, profile, url, timeout):
+def run_scan_streaming(tool, profile, url, timeout, wordlist=None):
     try:
+        if wordlist:
+            wordlist = os.path.expanduser(wordlist)
         base_cmd = None
         if tool == "Nmap":
             if profile == "Básico":
@@ -77,7 +79,9 @@ def run_scan_streaming(tool, profile, url, timeout):
         elif tool == "SQLMap":
             base_cmd = ["python3", "~/sqlmap/sqlmap.py", "-u", url, "--batch"]
         elif tool == "Gobuster":
-            base_cmd = ["~/go/bin/gobuster", "dir", "-u", url, "-w", "~/common.txt"]
+            base_cmd = ["~/go/bin/gobuster", "dir", "-u", url, "-w", wordlist or "~/common.txt", "-b", "404,401"]
+            if url.startswith("https://"):
+                base_cmd.append("-k")
         elif tool == "Metasploit":
             base_cmd = ["msfconsole", "-q", "-x", f"use auxiliary/scanner/http/http_version; set RHOSTS {url}; run; exit"]
         elif tool == "OWASP ZAP":
@@ -87,6 +91,7 @@ def run_scan_streaming(tool, profile, url, timeout):
             return
         
         if base_cmd:
+            base_cmd = [os.path.expanduser(p) for p in base_cmd]
             cmd = wrap_cmd_with_wsl_if_needed(base_cmd)
             process = run_cmd_with_sudo(cmd, sudo_password)
             try:
@@ -115,7 +120,7 @@ def save_tasks(tasks):
     with open(TASKS_FILE, 'w') as f:
         json.dump(tasks, f, indent=4)
 
-def run_scan_background(task_id, tool, profile, url, timeout):
+def run_scan_background(task_id, tool, profile, url, timeout, wordlist=None):
     try:
         base_cmd = None
         if tool == "Nmap":
@@ -143,7 +148,9 @@ def run_scan_background(task_id, tool, profile, url, timeout):
         elif tool == "SQLMap":
             base_cmd = ["python3", "~/sqlmap/sqlmap.py", "-u", url, "--batch"]
         elif tool == "Gobuster":
-            base_cmd = ["~/go/bin/gobuster", "dir", "-u", url, "-w", "~/common.txt"]
+            base_cmd = ["~/go/bin/gobuster", "dir", "-u", url, "-w", wordlist or "~/common.txt", "-b", "404,401"]
+            if url.startswith("https://"):
+                base_cmd.append("-k")
         elif tool == "Metasploit":
             base_cmd = ["msfconsole", "-q", "-x", f"use auxiliary/scanner/http/http_version; set RHOSTS {url}; run; exit"]
         elif tool == "OWASP ZAP":
@@ -152,6 +159,7 @@ def run_scan_background(task_id, tool, profile, url, timeout):
             raise ValueError(f"Herramienta no soportada: {tool}")
         
         if base_cmd:
+            base_cmd = [os.path.expanduser(p) for p in base_cmd]
             cmd = wrap_cmd_with_wsl_if_needed(base_cmd)
             tasks = load_tasks()
             tasks[task_id]["output"] = ""

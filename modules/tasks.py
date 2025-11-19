@@ -23,8 +23,21 @@ TOOLS_PROFILES = {
     "Nikto": ["Básico", "Completo"],
     "SQLMap": ["Default"],
     "Gobuster": ["Default"],
-    "Metasploit": ["Default"],
+    "Metasploit": ["Default", "Vuln Check Auto"],
     "OWASP ZAP": ["Default"]
+}
+
+# Map of services to Metasploit modules with check method
+SERVICE_MODULES = {
+    "http": ["auxiliary/scanner/http/http_version", "auxiliary/scanner/http/dir_scanner"],
+    "https": ["auxiliary/scanner/http/http_version", "auxiliary/scanner/http/dir_scanner"],
+    "ftp": ["auxiliary/scanner/ftp/ftp_version"],
+    "ssh": ["auxiliary/scanner/ssh/ssh_version"],
+    "smb": ["auxiliary/scanner/smb/smb_version"],
+    "mysql": ["auxiliary/scanner/mysql/mysql_version"],
+    "postgresql": ["auxiliary/scanner/postgres/postgres_version"],
+    "rdp": ["auxiliary/scanner/rdp/rdp_scanner"],
+    # Add more as needed
 }
 
 def run_cmd_with_sudo(cmd, password=None):
@@ -83,7 +96,69 @@ def run_scan_streaming(tool, profile, url, timeout, wordlist=None):
             if url.startswith("https://"):
                 base_cmd.append("-k")
         elif tool == "Metasploit":
-            base_cmd = ["msfconsole", "-q", "-x", f"use auxiliary/scanner/http/http_version; set RHOSTS {url}; run; exit"]
+            if profile == "Vuln Check Auto":
+                # Scan services with Nmap
+                yield "Scanning services with Nmap...\n"
+                nmap_cmd = ["sudo", "nmap", "-sV", url]
+                nmap_cmd = [os.path.expanduser(p) for p in nmap_cmd]
+                cmd = wrap_cmd_with_wsl_if_needed(nmap_cmd)
+                process = run_cmd_with_sudo(cmd, sudo_password)
+                nmap_output = ""
+                try:
+                    for line in iter(process.stdout.readline, ''):  # type: ignore
+                        nmap_output += line
+                        yield line
+                    process.stdout.close()  # type: ignore
+                    process.wait(timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    yield f"Nmap timeout after {timeout} seconds\n"
+                
+                # Parse services
+                services = []
+                for line in nmap_output.split('\n'):
+                    if '/tcp' in line and 'open' in line:
+                        parts = line.split()
+                        if len(parts) >= 3:
+                            port = parts[0].split('/')[0]
+                            service = parts[2]
+                            services.append((port, service))
+                yield f"\nDetected services: {services}\n"
+                
+                # Get modules to check
+                modules_to_check = set()
+                for port, service in services:
+                    if service in SERVICE_MODULES:
+                        modules_to_check.update(SERVICE_MODULES[service])
+                
+                if not modules_to_check:
+                    yield "No relevant modules found for detected services.\n"
+                    return
+                
+                # Execute checks
+                for module in modules_to_check:
+                    if module.startswith("auxiliary"):
+                        action = "run"
+                    else:
+                        action = "check"
+                    yield f"\nRunning {action} on module: {module}\n"
+                    msf_cmd = ["msfconsole", "-q", "-x", f"use {module}; set RHOSTS {url}; {action}; exit"]
+                    msf_cmd = [os.path.expanduser(p) for p in msf_cmd]
+                    cmd = wrap_cmd_with_wsl_if_needed(msf_cmd)
+                    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                    try:
+                        for line in iter(process.stdout.readline, ''):  # type: ignore
+                            yield line
+                        process.stdout.close()  # type: ignore
+                        process.wait(timeout=timeout)  # Use configurable timeout
+                        if process.returncode != 0:
+                            yield f"Module {module} {action} failed with code {process.returncode}\n"
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        yield f"Module {module} {action} timeout after {timeout} seconds\n"
+                return
+            else:
+                base_cmd = ["msfconsole", "-q", "-x", f"use auxiliary/scanner/http/http_version; set RHOSTS {url}; run; exit"]
         elif tool == "OWASP ZAP":
             base_cmd = ["~/ZAP_2.15.0/zap.sh", "-cmd", "-quickurl", url]
         else:
@@ -152,7 +227,100 @@ def run_scan_background(task_id, tool, profile, url, timeout, wordlist=None):
             if url.startswith("https://"):
                 base_cmd.append("-k")
         elif tool == "Metasploit":
-            base_cmd = ["msfconsole", "-q", "-x", f"use auxiliary/scanner/http/http_version; set RHOSTS {url}; run; exit"]
+            if profile == "Vuln Check Auto":
+                output_lines = []
+                # Scan services with Nmap
+                output_lines.append("Scanning services with Nmap...\n")
+                nmap_cmd = ["sudo", "nmap", "-sV", url]
+                nmap_cmd = [os.path.expanduser(p) for p in nmap_cmd]
+                cmd = wrap_cmd_with_wsl_if_needed(nmap_cmd)
+                process = run_cmd_with_sudo(cmd, sudo_password)
+                nmap_output = ""
+                try:
+                    for line in iter(process.stdout.readline, ''):  # type: ignore
+                        nmap_output += line
+                        output_lines.append(line)
+                        tasks = load_tasks()
+                        tasks[task_id]["output"] = ''.join(output_lines)
+                        save_tasks(tasks)
+                    process.stdout.close()  # type: ignore
+                    process.wait(timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    output_lines.append(f"Nmap timeout after {timeout} seconds\n")
+                
+                # Parse services
+                services = []
+                for line in nmap_output.split('\n'):
+                    if '/tcp' in line and 'open' in line:
+                        parts = line.split()
+                        if len(parts) >= 3:
+                            port = parts[0].split('/')[0]
+                            service = parts[2]
+                            services.append((port, service))
+                output_lines.append(f"\nDetected services: {services}\n")
+                
+                # Get modules to check
+                modules_to_check = set()
+                for port, service in services:
+                    if service in SERVICE_MODULES:
+                        modules_to_check.update(SERVICE_MODULES[service])
+                
+                if not modules_to_check:
+                    output_lines.append("No relevant modules found for detected services.\n")
+                else:
+                    # Execute checks
+                    for module in modules_to_check:
+                        if module.startswith("auxiliary"):
+                            action = "run"
+                        else:
+                            action = "check"
+                        output_lines.append(f"\nRunning {action} on module: {module}\n")
+                        tasks = load_tasks()
+                        tasks[task_id]["output"] = ''.join(output_lines)
+                        save_tasks(tasks)
+                        
+                        msf_cmd = ["msfconsole", "-q", "-x", f"use {module}; set RHOSTS {url}; {action}; exit"]
+                        msf_cmd = [os.path.expanduser(p) for p in msf_cmd]
+                        cmd = wrap_cmd_with_wsl_if_needed(msf_cmd)
+                        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                        try:
+                            for line in iter(process.stdout.readline, ''):  # type: ignore
+                                output_lines.append(line)
+                                tasks = load_tasks()
+                                tasks[task_id]["output"] = ''.join(output_lines)
+                                save_tasks(tasks)
+                            process.stdout.close()  # type: ignore
+                            process.wait(timeout=timeout)  # Use configurable timeout
+                            if process.returncode != 0:
+                                output_lines.append(f"Module {module} {action} failed with code {process.returncode}\n")
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                            output_lines.append(f"Module {module} {action} timeout after {timeout} seconds\n")
+                
+                output = ''.join(output_lines)
+                tasks = load_tasks()
+                tasks[task_id]["status"] = "completed"
+                tasks[task_id]["result"] = output
+                save_tasks(tasks)
+                
+                # Save to history
+                from modules.history import load_history, save_history
+                history = load_history()
+                history.append({
+                    "id": task_id,
+                    "timestamp": tasks[task_id]["start_time"],
+                    "prompt": f"Escaneo {tool} en {url} con perfil {profile}",
+                    "result": output,
+                    "provider": "Scan"
+                })
+                save_history(history)
+                # Remove from tasks
+                del tasks[task_id]
+                save_tasks(tasks)
+                return
+            else:
+                base_cmd = ["msfconsole", "-q", "-x", f"use auxiliary/scanner/http/http_version; set RHOSTS {url}; run; exit"]
         elif tool == "OWASP ZAP":
             base_cmd = ["~/ZAP_2.15.0/zap.sh", "-cmd", "-quickurl", url]
         else:

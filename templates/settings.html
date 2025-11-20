@@ -13,11 +13,15 @@
     <div id="ollama-settings">
         <div class="mb-3">
             <label for="ollama_url" class="form-label">URL de Ollama</label>
-            <input type="text" class="form-control" id="ollama_url" name="ollama_url" value="http://localhost:11434/api/chat">
+            <input type="text" class="form-control" id="ollama_url" name="ollama_url" value="http://localhost:11434/v1">
         </div>
         <div class="mb-3">
             <label for="ollama_model" class="form-label">Modelo</label>
-            <input type="text" class="form-control" id="ollama_model" name="ollama_model" value="llama3.2">
+            <select class="form-control" id="ollama_model" name="ollama_model">
+                {% for model in models %}
+                <option value="{{ model }}" {% if (session.settings and session.settings.ollama_model == model) or (not session.settings and model == 'llama3.2:latest') %}selected{% endif %}>{{ model }}</option>
+                {% endfor %}
+            </select>
         </div>
     </div>
     <div id="openai-settings" style="display: none;">

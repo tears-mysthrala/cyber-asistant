@@ -92,3 +92,47 @@ def run_scan_background(task_id, tool, profile, url, timeout):
         # Remove from tasks
         del tasks[task_id]
         save_tasks(tasks)
+
+def run_audit_background(task_id, prompt, system_prompt, provider, settings):
+    try:
+        from modules.llm import query_provider
+        resultado = query_provider(prompt, system_prompt, provider, settings)
+        tasks = load_tasks()
+        tasks[task_id]["status"] = "completed"
+        tasks[task_id]["result"] = resultado
+        save_tasks(tasks)
+        
+        # Save to history
+        from modules.history import load_history, save_history
+        history = load_history()
+        history.append({
+            "id": task_id,
+            "timestamp": tasks[task_id]["start_time"],
+            "prompt": prompt,
+            "result": resultado,
+            "provider": provider
+        })
+        save_history(history)
+        # Remove from tasks
+        del tasks[task_id]
+        save_tasks(tasks)
+    except Exception as e:
+        tasks = load_tasks()
+        tasks[task_id]["status"] = "failed"
+        tasks[task_id]["error"] = str(e)
+        save_tasks(tasks)
+        
+        # Save to history
+        from modules.history import load_history, save_history
+        history = load_history()
+        history.append({
+            "id": task_id,
+            "timestamp": tasks[task_id]["start_time"],
+            "prompt": prompt,
+            "result": f"Error: {str(e)}",
+            "provider": provider
+        })
+        save_history(history)
+        # Remove from tasks
+        del tasks[task_id]
+        save_tasks(tasks)

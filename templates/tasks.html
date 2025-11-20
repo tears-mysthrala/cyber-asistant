@@ -8,9 +8,13 @@
         Tarea ID: {{ task_id }} - Estado: {{ task.status }}
     </div>
     <div class="card-body">
-        <p><strong>Herramienta:</strong> {{ task.tool }}</p>
-        <p><strong>Perfil:</strong> {{ task.profile }}</p>
-        <p><strong>URL:</strong> {{ task.url }}</p>
+        {% if task.type == "audit" %}
+            <p><strong>Tipo:</strong> Reporte Combinado</p>
+        {% else %}
+            <p><strong>Herramienta:</strong> {{ task.tool }}</p>
+            <p><strong>Perfil:</strong> {{ task.profile }}</p>
+            <p><strong>URL:</strong> {{ task.url }}</p>
+        {% endif %}
         <p><strong>Inicio:</strong> {{ task.start_time }}</p>
         {% if task.status == "completed" %}
             <p>Resultado disponible en <a href="/history">Histórico</a></p>

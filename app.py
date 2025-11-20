@@ -1,11 +1,10 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
-import json
-import os
+from flask import Flask, render_template, request, redirect, url_for, flash, session, Response
 from datetime import datetime
 import uuid
 import threading
 import requests
-
+import tempfile
+import os
 
 def get_ollama_models():
     try:
@@ -35,6 +34,8 @@ from modules.tasks import (
     save_tasks,
     run_scan_background,
     run_audit_background,
+    run_scan_streaming,
+    TOOLS_PROFILES,
 )
 
 app = Flask(__name__)
@@ -170,16 +171,26 @@ def history():
 
 @app.route("/scan", methods=["GET", "POST"])
 def scan():
-    if request.method == "POST":
-        url = request.form.get("url")
-        tool = request.form.get("tool")
-        profile = request.form.get("profile")
-        timeout = int(request.form.get("timeout", 120))
-        background = "background" in request.form
-
-        provider = session.get("provider", "Ollama")
-        settings = session.get("settings", {})
-
+    if request.method == 'POST':
+        url = request.form.get('url')
+        tool = request.form.get('tool')
+        profile = request.form.get('profile')
+        timeout = int(request.form.get('timeout', 120))
+        background = 'background' in request.form
+        
+        wordlist = "~/common.txt"
+        if tool == "Gobuster":
+            if 'wordlist_file' in request.files and request.files['wordlist_file'].filename:
+                file = request.files['wordlist_file']
+                temp_dir = tempfile.mkdtemp()
+                filename = file.filename
+                if filename:
+                    file_path = os.path.join(temp_dir, filename)
+                    file.save(file_path)
+                    wordlist = file_path
+            else:
+                wordlist = request.form.get('wordlist', '~/common.txt')
+        
         if background:
             task_id = str(uuid.uuid4())
             tasks = load_tasks()
@@ -191,23 +202,37 @@ def scan():
                 "start_time": datetime.now().isoformat(),
             }
             save_tasks(tasks)
-            threading.Thread(
-                target=run_scan_background, args=(task_id, tool, profile, url, timeout)
-            ).start()
+            threading.Thread(target=run_scan_background, args=(task_id, tool, profile, url, timeout, wordlist)).start()
             flash(f"Tarea iniciada en background. ID: {task_id}")
             return redirect(url_for("scan"))
         else:
-            # Similar to before, but simplified
-            flash("Escaneo sincrónico no implementado aún.")
-            return redirect(url_for("scan"))
-
-    return render_template("scan.html")
+            # Run synchronously and stream output
+            def generate():
+                output = []
+                for line in run_scan_streaming(tool, profile, url, timeout, wordlist):
+                    output.append(line)
+                    yield line
+                # Save to history after completion
+                combined_output = ''.join(output)
+                history = load_history()
+                history.append({
+                    "id": str(uuid.uuid4()),
+                    "timestamp": datetime.now().isoformat(),
+                    "prompt": f"Escaneo {tool} en {url} con perfil {profile}",
+                    "result": combined_output,
+                    "provider": "Scan"
+                })
+                save_history(history)
+            return Response(generate(), mimetype='text/plain')
+    
+    return render_template('scan.html', tools_profiles=TOOLS_PROFILES)
 
 
 @app.route("/tasks")
 def tasks():
     tasks_data = load_tasks()
-    return render_template("tasks.html", tasks=tasks_data)
+    has_running = any(task.get('status') == 'running' for task in tasks_data.values())
+    return render_template('tasks.html', tasks=tasks_data, has_running=has_running)
 
 
 @app.route("/settings", methods=["GET", "POST"])

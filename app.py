@@ -1,10 +1,20 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, Response
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    flash,
+    session,
+    Response,
+)
 from datetime import datetime
 import uuid
 import threading
 import requests
 import tempfile
 import os
+
 
 def get_ollama_models():
     try:
@@ -171,17 +181,20 @@ def history():
 
 @app.route("/scan", methods=["GET", "POST"])
 def scan():
-    if request.method == 'POST':
-        url = request.form.get('url')
-        tool = request.form.get('tool')
-        profile = request.form.get('profile')
-        timeout = int(request.form.get('timeout', 120))
-        background = 'background' in request.form
-        
+    if request.method == "POST":
+        url = request.form.get("url")
+        tool = request.form.get("tool")
+        profile = request.form.get("profile")
+        timeout = int(request.form.get("timeout", 120))
+        background = "background" in request.form
+
         wordlist = "~/common.txt"
         if tool == "Gobuster":
-            if 'wordlist_file' in request.files and request.files['wordlist_file'].filename:
-                file = request.files['wordlist_file']
+            if (
+                "wordlist_file" in request.files
+                and request.files["wordlist_file"].filename
+            ):
+                file = request.files["wordlist_file"]
                 temp_dir = tempfile.mkdtemp()
                 filename = file.filename
                 if filename:
@@ -189,8 +202,8 @@ def scan():
                     file.save(file_path)
                     wordlist = file_path
             else:
-                wordlist = request.form.get('wordlist', '~/common.txt')
-        
+                wordlist = request.form.get("wordlist", "~/common.txt")
+
         if background:
             task_id = str(uuid.uuid4())
             tasks = load_tasks()
@@ -202,7 +215,10 @@ def scan():
                 "start_time": datetime.now().isoformat(),
             }
             save_tasks(tasks)
-            threading.Thread(target=run_scan_background, args=(task_id, tool, profile, url, timeout, wordlist)).start()
+            threading.Thread(
+                target=run_scan_background,
+                args=(task_id, tool, profile, url, timeout, wordlist),
+            ).start()
             flash(f"Tarea iniciada en background. ID: {task_id}")
             return redirect(url_for("scan"))
         else:
@@ -213,26 +229,29 @@ def scan():
                     output.append(line)
                     yield line
                 # Save to history after completion
-                combined_output = ''.join(output)
+                combined_output = "".join(output)
                 history = load_history()
-                history.append({
-                    "id": str(uuid.uuid4()),
-                    "timestamp": datetime.now().isoformat(),
-                    "prompt": f"Escaneo {tool} en {url} con perfil {profile}",
-                    "result": combined_output,
-                    "provider": "Scan"
-                })
+                history.append(
+                    {
+                        "id": str(uuid.uuid4()),
+                        "timestamp": datetime.now().isoformat(),
+                        "prompt": f"Escaneo {tool} en {url} con perfil {profile}",
+                        "result": combined_output,
+                        "provider": "Scan",
+                    }
+                )
                 save_history(history)
-            return Response(generate(), mimetype='text/plain')
-    
-    return render_template('scan.html', tools_profiles=TOOLS_PROFILES)
+
+            return Response(generate(), mimetype="text/plain")
+
+    return render_template("scan.html", tools_profiles=TOOLS_PROFILES)
 
 
 @app.route("/tasks")
 def tasks():
     tasks_data = load_tasks()
-    has_running = any(task.get('status') == 'running' for task in tasks_data.values())
-    return render_template('tasks.html', tasks=tasks_data, has_running=has_running)
+    has_running = any(task.get("status") == "running" for task in tasks_data.values())
+    return render_template("tasks.html", tasks=tasks_data, has_running=has_running)
 
 
 @app.route("/settings", methods=["GET", "POST"])
